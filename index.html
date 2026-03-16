@@ -5,39 +5,33 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>玉桂狗日记本</title>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif}
+  *{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,sans-serif}
   body{background:#fff9e6;padding:15px;min-height:100vh}
   .container{max-width:700px;margin:20px auto;background:#fff;border-radius:24px;padding:25px;box-shadow:0 8px 30px rgba(100,120,255,0.1)}
   .logo{text-align:center;font-size:50px;margin-bottom:10px}
   .title{text-align:center;color:#4a90ff;margin-bottom:6px}
   .subtitle{text-align:center;color:#ff85a2;margin-bottom:20px}
   
-  /* 日历 */
   .calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:20px}
   .calendar-header{text-align:center;font-weight:bold;color:#4a90ff;padding:8px 0}
   .day{background:#f7f9ff;border-radius:12px;padding:12px;text-align:center;cursor:pointer;border:1px solid #eef5ff}
   .day.active{background:#4a90ff;color:white}
   .day:hover{background:#eef5ff}
   
-  /* 按钮 */
   .btn{padding:10px 14px;background:#4a90ff;color:white;border:none;border-radius:12px;margin-top:10px}
   .pink{background:#ff85a2}
   .yellow{background:#ffd166;color:#333}
   
-  /* 日记区域 */
   .diary{display:none;margin-top:20px}
   .diary.active{display:block}
   .date-title{color:#4a90ff;margin-bottom:15px;text-align:center}
   
-  /* 输入 */
   textarea,input{width:100%;padding:12px;border-radius:12px;border:1px solid #ddd;margin-bottom:10px}
   textarea{height:100px;resize:none}
   
-  /* 图片预览 */
   .preview{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
   .preview img{width:70px;height:70px;object-fit:cover;border-radius:10px}
   
-  /* 计划 */
   .plan-item{display:flex;align-items:center;gap:10px;margin-bottom:8px}
   .plan-text{flex:1}
   .progress-bar{width:100%;height:8px;background:#eee;border-radius:4px;margin-top:4px}
@@ -46,6 +40,9 @@
   .section{margin-bottom:20px;padding-top:10px}
   .nav{display:flex;gap:10px;margin-bottom:15px}
   .nav button{flex:1;padding:10px;border-radius:12px;border:none;background:#eef5ff;color:#4a90ff}
+
+  .page{display:none}
+  .page.active{display:block}
 </style>
 </head>
 <body>
@@ -59,12 +56,10 @@
     <button onclick="showPage('diary')">✏️ 写日记</button>
   </div>
 
-  <!-- 日历 -->
   <div id="calendarPage" class="page active">
     <div class="calendar" id="calendar"></div>
   </div>
 
-  <!-- 日记详情 -->
   <div id="diaryPage" class="page">
     <div id="diary" class="diary active">
       <h3 class="date-title" id="currentDate"></h3>
@@ -72,7 +67,7 @@
       <div class="section">
         <h4 style="margin-bottom:8px;color:#ff85a2">✏️ 今日记录</h4>
         <textarea id="content" placeholder="写下今天的心情..."></textarea>
-        <input type="file" id="imgs" multiple accept="image/*" onchange="previewImgs()">
+        <input type="file" id="imgs" multiple accept="image/*">
         <div class="preview" id="preview"></div>
       </div>
 
@@ -85,7 +80,6 @@
       <button class="btn" onclick="saveDiary()">💾 保存今日日记</button>
     </div>
   </div>
-
 </div>
 
 <script>
@@ -94,28 +88,41 @@ let currentViewDate = today.getFullYear()+'-'+String(today.getMonth()+1).padStar
 let diaryData = JSON.parse(localStorage.getItem('diaryData')) || {};
 let imgList = [];
 
-// 初始化
 window.onload = function(){
   renderCalendar();
   loadDiary(currentViewDate);
   showPage('calendar');
+  
   document.getElementById('planInput').addEventListener('keypress',(e)=>{
     if(e.key==='Enter') addPlan();
   })
+
+  document.getElementById('imgs').addEventListener('change',function(e){
+    let files = e.target.files;
+    imgList = [];
+    document.getElementById('preview').innerHTML = '';
+    for(let i=0;i<files.length;i++){
+      let reader = new FileReader();
+      reader.onload = function(ev){
+        imgList.push(ev.target.result);
+        let img = document.createElement('img');
+        img.src = ev.target.result;
+        document.getElementById('preview').appendChild(img);
+      }
+      reader.readAsDataURL(files[i]);
+    }
+  })
 }
 
-// 切换页面
 function showPage(page){
-  document.querySelectorAll('.page').forEach(p=>p.style.display='none');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   if(page==='calendar'){
-    document.getElementById('calendarPage').style.display='block';
+    document.getElementById('calendarPage').classList.add('active');
   }else{
-    document.getElementById('calendarPage').style.display='none';
-    document.getElementById('diaryPage').style.display='block';
+    document.getElementById('diaryPage').classList.add('active');
   }
 }
 
-// 生成日历
 function renderCalendar(){
   let cal = document.getElementById('calendar');
   cal.innerHTML = `
@@ -132,41 +139,19 @@ function renderCalendar(){
   let firstDay = new Date(year,month,1).getDay();
   let daysInMonth = new Date(year,month+1,0).getDate();
 
-  for(let i=0;i<firstDay;i++){
-    cal.innerHTML += `<div class="day" style="visibility:hidden"></div>`;
-  }
-
+  for(let i=0;i<firstDay;i++) cal.innerHTML += `<div class="day" style="visibility:hidden"></div>`;
   for(let d=1;d<=daysInMonth;d++){
     let dateStr = year+'-'+String(month+1).padStart(2,0)+'-'+String(d).padStart(2,0);
     cal.innerHTML += `<div class="day" onclick="openDay('${dateStr}')">${d}</div>`;
   }
 }
 
-// 打开某天
 function openDay(date){
   currentViewDate = date;
   showPage('diary');
   loadDiary(date);
 }
 
-// 预览图片
-function previewImgs(){
-  let files = document.getElementById('imgs').files;
-  imgList = [];
-  document.getElementById('preview').innerHTML = '';
-  for(let i=0;i<files.length;i++){
-    let reader = new FileReader();
-    reader.onload = e=>{
-      imgList.push(e.target.result);
-      let img = document.createElement('img');
-      img.src = e.target.result;
-      document.getElementById('preview').appendChild(img);
-    }
-    reader.readAsDataURL(files[i]);
-  }
-}
-
-// 加载日记
 function loadDiary(date){
   document.getElementById('currentDate').innerText = '🗓 '+date;
   let data = diaryData[date] || {content:'',imgs:[],plans:[]};
@@ -176,7 +161,6 @@ function loadDiary(date){
   renderPlans();
 }
 
-// 渲染图片
 function renderPreview(){
   let p = document.getElementById('preview');
   p.innerHTML = '';
@@ -187,14 +171,11 @@ function renderPreview(){
   })
 }
 
-// 计划相关
 function addPlan(){
   let text = document.getElementById('planInput').value.trim();
   if(!text) return;
-  let data = diaryData[currentViewDate] || {content:'',imgs:[],plans:[]};
-  if(!data.plans) data.plans = [];
-  data.plans.push({text,done:false});
-  diaryData[currentViewDate] = data;
+  if(!diaryData[currentViewDate]) diaryData[currentViewDate] = {content:'',imgs:[],plans:[]};
+  diaryData[currentViewDate].plans.push({text,done:false});
   localStorage.setItem('diaryData',JSON.stringify(diaryData));
   document.getElementById('planInput').value = '';
   renderPlans();
@@ -234,7 +215,6 @@ function renderPlans(){
   })
 }
 
-// 保存日记
 function saveDiary(){
   diaryData[currentViewDate] = {
     content: document.getElementById('content').value.trim(),
